@@ -166,6 +166,25 @@ class EntriesParser {
       cc = this._source.charCodeAt(++this._index);
     }
   }
+  
+  isEOL() {
+    return this._source[this._index] == '\n' || (this._source[this._index] == "\r" && this._source[this._index+1] == "\n");
+  }
+  
+  getLineContent() {
+    let start = this._index;
+    let eol = this._source.indexOf('\n', this._index);
+    if (eol === -1) {
+      eol = this._length;
+    }
+    this._index = eol;
+    let eoc = (eol > 0 && this._source.charCodeAt(eol-1) === 13) ? eol-1 : eol;
+    if(start != eoc) {
+      return this._source.slice(start, eoc);
+    } else {
+      return undefined;
+    }
+  }
 
   getIdentifier() {
     const start = this._index;
@@ -261,22 +280,13 @@ class EntriesParser {
     if (this._source[start] === '"') {
       return this.getComplexPattern();
     }
-    let eol = this._source.indexOf('\n', this._index);
-
-    if (eol === -1) {
-      eol = this._length;
-    }
-
-    const line = start !== eol ?
-      this._source.slice(start, eol) : undefined;
-
+    const line = this.getLineContent();
     if (line !== undefined && line.includes('{')) {
+      this._index = start;
       return this.getComplexPattern();
     }
 
-    this._index = eol + 1;
-
-    this.getLineWS();
+    this.getWS();
 
     if (this._source[this._index] === '|') {
       this._index = start;
@@ -320,7 +330,12 @@ class EntriesParser {
     while (this._index < this._length) {
       // This block handles multi-line strings combining strings seaprated
       // by new line and `|` character at the beginning of the next one.
-      if (ch === '\n') {
+      if(ch == '\r') {
+        // Ignore it
+        this._index++;
+        ch = this._source[this._index];
+        continue;
+      } else if (ch === '\n') {
         if (quoteDelimited) {
           throw this.error('Unclosed string');
         }
@@ -444,7 +459,7 @@ class EntriesParser {
 
       this.getLineWS();
 
-      if (this._source[this._index] !== '\n') {
+      if (!this.isEOL()) {
         throw this.error('Members should be listed in a new line');
       }
 
